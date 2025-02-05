@@ -58,6 +58,8 @@ class GestureFrame:
         self.rightHorizon = self.calcHorizon(self.rightLandmark)
         self.handDist = self.calcHandDist(self.leftLandmark, self.rightLandmark)
 
+        self.data = np.concatenate(self.leftBetweenFinger, self.rightBetweenFinger, self.leftBetweenFinger, self.rightBetweenFinger, self.leftHorizon, self.rightHorizon, self.handDist)
+    
     def formatLandmarks(self, unformattedLandmarks):
         return np.array([[lm.x, lm.y, lm.z] for lm in list(unformattedLandmarks.landmark)], dtype=np.float32)
 
@@ -77,7 +79,8 @@ class GestureFrame:
     
     def calcBetweenFingers(self, handLandmark):
         if handLandmark is None:
-            return None
+            array = np.empty(4)
+            return array.fill(np.nan)
         return np.array([
             #angles between each finger:
             self.calcLMAngle(handLandmark, 1,0,5),
@@ -88,7 +91,8 @@ class GestureFrame:
     
     def calcEachFinger(self, handLandmark):
         if handLandmark is None:
-            return None
+            array = np.empty(15)
+            return array.fill(np.nan)
         return np.array([
             #angles between thumb joints
             self.calcLMAngle(handLandmark, 0, 1, 2), 
@@ -118,7 +122,7 @@ class GestureFrame:
     
     def calcHorizon(self, handLandmark):
         if handLandmark is None:
-            return None
+            return np.nan
         vec1 = handLandmark[9] - handLandmark[0] #between wrist and centre of hand
         vec2 = [1, 0 ,0] #horizon
         return self.calcVecAngle(vec1, vec2)
@@ -176,7 +180,7 @@ def dtwGestureFrameDistance(frame1, frame2, oneHandedGesture = False):
     if (frame1.handDist is not None and frame2.handDist is not None):
         handDist = np.abs(frame1.handDist - frame2.handDist) / MAX_HAND_DIST * np.pi  # Ensures handDist is between 0 and pi.
 
-    print("between: " + betweenDist + ", eachDist: " + eachDist + ", horizon: " + horizonDist + "handDist:" + handDist)
+    print("between: " + str(betweenDist) + ", eachDist: " + str(eachDist) + ", horizon: " + str(horizonDist) + "handDist:" + str(handDist))
 
     return (
         weights["betweenFingers"] * betweenDist +

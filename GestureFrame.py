@@ -1,6 +1,15 @@
 import numpy as np
 
 MAX_HAND_DIST = 5
+BETWEEN_SIZE = 4
+EACH_SIZE = 15
+
+weights = {
+    "betweenFingers" : 0.3,
+    "eachFinger" : 0.3,
+    "horizon" : 0.15,
+    "handDist" : 0.15
+}
 
 class GestureFrame:
     def __init__(self, multiLandmarks, multiHandedness):
@@ -22,6 +31,7 @@ class GestureFrame:
     
         if multiLandmarks is None:
             self.noOfHands = 0
+            self.data = np.full(BETWEEN_SIZE + BETWEEN_SIZE + EACH_SIZE + EACH_SIZE + 1 + 1 + 1, np.nan)
             return
         
         self.noOfHands = len(multiLandmarks)
@@ -58,7 +68,11 @@ class GestureFrame:
         self.rightHorizon = self.calcHorizon(self.rightLandmark)
         self.handDist = self.calcHandDist(self.leftLandmark, self.rightLandmark)
 
-        self.data = np.concatenate(self.leftBetweenFinger, self.rightBetweenFinger, self.leftBetweenFinger, self.rightBetweenFinger, self.leftHorizon, self.rightHorizon, self.handDist)
+        self.data = np.concatenate([self.leftBetweenFinger, self.rightBetweenFinger, self.leftEachFinger, self.rightEachFinger, [self.leftHorizon], [self.rightHorizon], [self.handDist]])
+
+        if len(self.data) != BETWEEN_SIZE + BETWEEN_SIZE + EACH_SIZE + EACH_SIZE + 1 + 1 + 1:
+            print(len(self.data))
+            raise ValueError("Data incorrect shape!")
     
     def formatLandmarks(self, unformattedLandmarks):
         return np.array([[lm.x, lm.y, lm.z] for lm in list(unformattedLandmarks.landmark)], dtype=np.float32)
@@ -71,7 +85,7 @@ class GestureFrame:
     
     def calcVecAngle(self, v1, v2):
         vec1 = v1 / np.linalg.norm(v1)
-        vec2 = v1 / np.linalg.norm(v2)
+        vec2 = v2 / np.linalg.norm(v2)
 
         dotProd = np.clip(np.dot(vec1, vec2), -1, 1)
 
@@ -79,8 +93,7 @@ class GestureFrame:
     
     def calcBetweenFingers(self, handLandmark):
         if handLandmark is None:
-            array = np.empty(4)
-            return array.fill(np.nan)
+            return np.full(BETWEEN_SIZE ,np.nan)
         return np.array([
             #angles between each finger:
             self.calcLMAngle(handLandmark, 1,0,5),
@@ -91,8 +104,7 @@ class GestureFrame:
     
     def calcEachFinger(self, handLandmark):
         if handLandmark is None:
-            array = np.empty(15)
-            return array.fill(np.nan)
+            return np.full(EACH_SIZE ,np.nan)
         return np.array([
             #angles between thumb joints
             self.calcLMAngle(handLandmark, 0, 1, 2), 
@@ -129,7 +141,7 @@ class GestureFrame:
     
     def calcHandDist(self, handLandmark1, handLandmark2):
         if handLandmark1 is None or handLandmark2 is None:
-            return MAX_HAND_DIST
+            return np.nan
         avHandSize = (np.linalg.norm(handLandmark1[9] - handLandmark1[0]) + np.linalg.norm(handLandmark2[9] - handLandmark2[0])) /2
         distBetween = np.linalg.norm(handLandmark1[0] - handLandmark2[0])
         return min(distBetween / avHandSize, MAX_HAND_DIST)
@@ -142,30 +154,25 @@ def angleDif(a ,b):
     diff = np.abs(a - b)
     return np.minimum(diff, 2 * np.pi - diff)
 
-def dtwGestureFrameDistance(frame1, frame2, oneHandedGesture = False):
-
-    weights = {
-        "betweenFingers" : 0.3,
-        "eachFinger" : 0.3,
-        "horizon" : 0.15,
-        "handDist" : 0.15
-    }
-
-    if (frame1.noOfHands == 0 or frame2.noOfHands == 0):
-        return np.pi #max val
-
-
+def frameDistance(frameData1, frameData2, oneHandedGesture = False):
+    leftBetweenFinger1, rightBetweenFinger1, leftEachFinger1, rightEachFinger1, leftHorizon1, rightHorizon1, handDist1 = np.split(frameData1,
+        [BETWEEN_SIZE, BETWEEN_SIZE+BETWEEN_SIZE, BETWEEN_SIZE+BETWEEN_SIZE+EACH_SIZE, BETWEEN_SIZE+BETWEEN_SIZE+EACH_SIZE+EACH_SIZE, BETWEEN_SIZE+BETWEEN_SIZE+EACH_SIZE+EACH_SIZE + 1, BETWEEN_SIZE+BETWEEN_SIZE+EACH_SIZE+EACH_SIZE +2])
+    leftBetweenFinger2, rightBetweenFinger2, leftEachFinger2, rightEachFinger2, leftHorizon2, rightHorizon2, handDist2 = np.split(frameData2,
+        [BETWEEN_SIZE, BETWEEN_SIZE+BETWEEN_SIZE, BETWEEN_SIZE+BETWEEN_SIZE+EACH_SIZE, BETWEEN_SIZE+BETWEEN_SIZE+EACH_SIZE+EACH_SIZE, BETWEEN_SIZE+BETWEEN_SIZE+EACH_SIZE+EACH_SIZE + 1, BETWEEN_SIZE+BETWEEN_SIZE+EACH_SIZE+EACH_SIZE +2])
+    
     leftBetweenFingersDist = leftEachFingersDist = leftHorizonDist = rightBetweenFingersDist = rightEachFingersDist = rightHorizonDist = np.pi
 
-    if (frame1.leftLandmark is not None and frame2.leftLandmark is not None):
-        leftBetweenFingersDist = np.linalg.norm(angleDif(frame1.leftBetweenFinger, frame2.leftBetweenFinger)) / len(frame1.leftBetweenFinger)
-        leftEachFingersDist = np.linalg.norm(angleDif(frame1.leftEachFinger, frame2.leftEachFinger)) / len(frame1.leftEachFinger)
-        leftHorizonDist = np.linalg.norm(angleDif(frame1.leftHorizon, frame2.leftHorizon))
+    if (not np.isnan(leftBetweenFinger1[0]) and not np.isnan(leftBetweenFinger2[0])):
+        leftBetweenFingersDist = np.mean(angleDif(leftBetweenFinger1, leftBetweenFinger2))
+        leftEachFingersDist = np.mean(angleDif(leftEachFinger1, leftEachFinger2)) #assume we have each if we have between
+        leftHorizonDist = np.abs(leftHorizon1[0] - leftHorizon2[0])
     
-    if (frame1.rightLandmark is not None and frame2.rightLandmark is not None):
-        rightBetweenFingersDist = np.linalg.norm(angleDif(frame1.rightBetweenFinger, frame2.rightBetweenFinger)) / len(frame1.rightBetweenFinger)
-        rightEachFingersDist = np.linalg.norm(angleDif(frame1.rightEachFinger, frame2.rightEachFinger)) / len(frame1.rightEachFinger)
-        rightHorizonDist = np.linalg.norm(angleDif(frame1.rightHorizon, frame2.rightHorizon))
+    if (not np.isnan(rightBetweenFinger1[0]) and not np.isnan(rightBetweenFinger2[0])):
+        rightBetweenFingersDist = np.mean(angleDif(rightBetweenFinger1, rightBetweenFinger2))
+        rightEachFingersDist = np.mean(angleDif(rightEachFinger1, rightEachFinger2)) 
+        rightHorizonDist = angleDif(rightHorizon1[0], rightHorizon2[0])
+    
+    betweenDist = eachDist = horizonDist = handDist = np.pi 
 
     if oneHandedGesture:  # If 1-handed gesture, return hand that matches best
         betweenDist = min(leftBetweenFingersDist, rightBetweenFingersDist)
@@ -176,11 +183,8 @@ def dtwGestureFrameDistance(frame1, frame2, oneHandedGesture = False):
         eachDist = (leftEachFingersDist + rightEachFingersDist) / 2
         horizonDist = (leftHorizonDist + rightHorizonDist) / 2
 
-    handDist = np.pi
-    if (frame1.handDist is not None and frame2.handDist is not None):
-        handDist = np.abs(frame1.handDist - frame2.handDist) / MAX_HAND_DIST * np.pi  # Ensures handDist is between 0 and pi.
-
-    print("between: " + str(betweenDist) + ", eachDist: " + str(eachDist) + ", horizon: " + str(horizonDist) + "handDist:" + str(handDist))
+    if (not np.isnan(handDist1[0]) and not np.isnan(handDist2)):
+        handDist = np.abs(handDist1[0] - handDist2[0]) / MAX_HAND_DIST * np.pi  # Ensures handDist is between 0 and pi.
 
     return (
         weights["betweenFingers"] * betweenDist +
@@ -188,4 +192,3 @@ def dtwGestureFrameDistance(frame1, frame2, oneHandedGesture = False):
         weights["horizon"] * horizonDist +
         weights["handDist"] * handDist
     )
-

@@ -1,0 +1,7 @@
+- all angles between 0 and pi
+- now we can use angle subtraction abs
+- average out finger curl into single value
+- hand rotation
+- multithread
+
+4 ,4 ,5 , 5, 2, 2, 1 = 23

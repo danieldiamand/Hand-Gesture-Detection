@@ -102,10 +102,10 @@ class GestureFrame:
     def fromDict(cls, data):
         frame = cls(None, None)
         
-        frame.leftBetweenFinger = np.array(data['leftBetweenFinger']) if data['leftBetweenFinger'] is not None else None
-        frame.rightBetweenFinger = np.array(data['rightBetweenFinger']) if data['rightBetweenFinger'] is not None else None
-        frame.leftEachFinger = np.array(data['leftEachFinger']) if data['leftEachFinger'] is not None else None
-        frame.rightEachFinger = np.array(data['rightEachFinger']) if data['rightEachFinger'] is not None else None
+        frame.leftBetweenFinger = np.array(data['leftBetweenFinger']) if data['leftBetweenFinger'] is not None else np.full(BETWEEN_SIZE ,np.nan)
+        frame.rightBetweenFinger = np.array(data['rightBetweenFinger']) if data['rightBetweenFinger'] is not None else np.full(BETWEEN_SIZE ,np.nan)
+        frame.leftEachFinger = np.array(data['leftEachFinger']) if data['leftEachFinger'] is not None else np.full(EACH_SIZE ,np.nan)
+        frame.rightEachFinger = np.array(data['rightEachFinger']) if data['rightEachFinger'] is not None else np.full(EACH_SIZE ,np.nan)
         frame.leftHorizon = data['leftHorizon']
         frame.rightHorizon = data['rightHorizon']
         frame.handDist = data['handDist']
